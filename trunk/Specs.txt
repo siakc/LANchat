@@ -1,0 +1,10 @@
+Each node broadcasts itself at startup containing IP and nickname (via UDP)
+Each of the nodes receiving the broadcasts register the broadcaster and  checks:
+	If connected to two nodes->Does nothing
+	If connected to no node->Connects to broadcaster (via TCP)
+	If connected to one node:
+		If the connected node is initiator->Connects to broadcaster
+		If the connected node is not initiator->Does nothing
+When a user sends a message, its node sends the message to any connected node
+Other nodes relay the message
+To send a message to a specific nickname, a node can establish a TCP connection o target node (using registared IP-Nickname pair)
