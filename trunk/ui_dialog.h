@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'dialog.ui'
 **
-** Created: Fri Jan 6 09:40:00 2012
+** Created: Fri Mar 9 21:48:10 2012
 **      by: Qt User Interface Compiler version 4.7.4
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
@@ -46,12 +46,15 @@ public:
     {
         if (Dialog->objectName().isEmpty())
             Dialog->setObjectName(QString::fromUtf8("Dialog"));
+        Dialog->setWindowModality(Qt::ApplicationModal);
         Dialog->resize(499, 358);
-        QSizePolicy sizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        QSizePolicy sizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
         sizePolicy.setHorizontalStretch(0);
         sizePolicy.setVerticalStretch(0);
         sizePolicy.setHeightForWidth(Dialog->sizePolicy().hasHeightForWidth());
         Dialog->setSizePolicy(sizePolicy);
+        Dialog->setMinimumSize(QSize(499, 358));
+        Dialog->setMaximumSize(QSize(499, 358));
         Dialog->setSizeGripEnabled(false);
         Dialog->setModal(true);
         listView = new QListView(Dialog);
