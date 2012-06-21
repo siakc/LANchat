@@ -1,6 +1,6 @@
 #ifndef CONMNGR_H
 #define CONMNGR_H
-
+#define _CRT_SECURE_NO_WARNINGS
 #include <map>
 #include <functional>
 #include <QList>
@@ -11,6 +11,7 @@
 #include <QtNetwork\QUdpSocket>
 #include <QtNetwork\QNetworkInterface>
 #include <QStringList>
+
 
 struct lessQHostAddress : public std::binary_function <QHostAddress, QHostAddress, bool>
 {
@@ -30,8 +31,11 @@ typedef NickIpPairMap::const_iterator NickIpCIter;
 class ConnectionManager : public QObject
 {
     Q_OBJECT
+    enum PacketTypes {ADZ, CON, HSH, TDC, UNN, MSG};
+
+    QByteArray LANCHATSIG;
     static const int LISTEN_PORT = 5160;
-    enum PacketTypes {ADZ, CON, HSH, NNC, UNN, MSG};
+
     QUdpSocket *udpSocket;
     QTcpServer *listenSocket;
     QTcpSocket *incommingTcp;
@@ -48,19 +52,16 @@ class ConnectionManager : public QObject
     void ManageConnections();
     void OnLanChatPacket(QByteArray *packet);
 
-    QByteArray CreateADZPacket(QString nickname, QString hostAddress);  //UDP advertize
-    QByteArray CreateCONPacket(QString hostAddress);                    //Connect to advertizer, sends ip so NAT can be detected
-    QByteArray CreateHSHPacket();                                       //Advertizer accepts connection
-    QByteArray CreateNNCPacket(QString nickname, QString hostAddress);  //Sent via UDP when peer changes its nickname
-    QByteArray CreateUNNPacket();                                       //Sent after receiving HSH to newly connected advertizer
+    QByteArray CreateADZPacket();		//UDP advertize
+    QByteArray CreateCONPacket();               //Connect to advertizer, sends ip so NAT can be detected
+    QByteArray CreateHSHPacket();               //Advertizer accepts connection
+    QByteArray CreateTDCPacket();		//Sent after the tail coonection has been dropped
     QByteArray CreateMSGPacket(QString message);
 
-    void OnADZPacket(QStringList *packet);
-    void OnCONPacket(QStringList *packet);
-    void OnHSHPacket(QStringList *packet);
-    void OnNNCPacket(QStringList *packet);
-    void OnUNNPacket(QStringList *packet);
-    void OnMSGPacket(QStringList *packet);
+    void OnADZPacket(QStringList *payloads);
+    void OnCONPacket(QStringList *payloads);
+    void OnHSHPacket(QStringList *payloads);
+    void OnMSGPacket(QStringList *payloads, bool isFromTail);
 
     PacketTypes DisassemblePacket(QByteArray *packet, QStringList *payloads);
 
@@ -103,7 +104,7 @@ public:
         nickname = name;
     }
 
-    QString GetMyNickname() const
+    QString GetMyNickname()
     {
         return nickname;
     }
@@ -113,8 +114,8 @@ public:
     {
         if(nickIpPairList == nullptr) return false;
         else
-            for(NickIpCIter it = nickIpPairList->cbegin();it != nickIpPairList->cend() ;++it)
-                nickNames->append( it->second);
+	    for(NickIpCIter itter = nickIpPairList->cbegin();itter != nickIpPairList->cend() ;++itter)
+		nickNames->append( itter->second);
 
         return true;
 

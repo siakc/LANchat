@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'dialog.ui'
 **
-** Created: Fri Mar 9 21:48:10 2012
+** Created: Wed Jun 20 22:08:26 2012
 **      by: Qt User Interface Compiler version 4.7.4
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
@@ -67,17 +67,26 @@ public:
         pushButton = new QPushButton(Dialog);
         pushButton->setObjectName(QString::fromUtf8("pushButton"));
         pushButton->setGeometry(QRect(400, 270, 75, 23));
+        pushButton->setAutoDefault(false);
+        pushButton->setDefault(true);
         plainTextEdit = new QPlainTextEdit(Dialog);
         plainTextEdit->setObjectName(QString::fromUtf8("plainTextEdit"));
         plainTextEdit->setGeometry(QRect(120, 10, 351, 251));
+        plainTextEdit->setFocusPolicy(Qt::NoFocus);
         plainTextEdit->setReadOnly(true);
         plainTextEdit->setBackgroundVisible(false);
         pushButton_con = new QPushButton(Dialog);
         pushButton_con->setObjectName(QString::fromUtf8("pushButton_con"));
         pushButton_con->setGeometry(QRect(320, 330, 71, 23));
+        pushButton_con->setAutoDefault(false);
         lineEdit_subnet = new QLineEdit(Dialog);
         lineEdit_subnet->setObjectName(QString::fromUtf8("lineEdit_subnet"));
         lineEdit_subnet->setGeometry(QRect(230, 300, 101, 21));
+        QSizePolicy sizePolicy1(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        sizePolicy1.setHorizontalStretch(0);
+        sizePolicy1.setVerticalStretch(0);
+        sizePolicy1.setHeightForWidth(lineEdit_subnet->sizePolicy().hasHeightForWidth());
+        lineEdit_subnet->setSizePolicy(sizePolicy1);
         label = new QLabel(Dialog);
         label->setObjectName(QString::fromUtf8("label"));
         label->setGeometry(QRect(190, 300, 41, 20));
@@ -87,9 +96,12 @@ public:
         lineEdit_netmask = new QLineEdit(Dialog);
         lineEdit_netmask->setObjectName(QString::fromUtf8("lineEdit_netmask"));
         lineEdit_netmask->setGeometry(QRect(350, 300, 31, 20));
+        sizePolicy1.setHeightForWidth(lineEdit_netmask->sizePolicy().hasHeightForWidth());
+        lineEdit_netmask->setSizePolicy(sizePolicy1);
+        lineEdit_netmask->setAcceptDrops(true);
         label_2 = new QLabel(Dialog);
         label_2->setObjectName(QString::fromUtf8("label_2"));
-        label_2->setGeometry(QRect(330, 302, 16, 16));
+        label_2->setGeometry(QRect(340, 302, 16, 16));
         lineEdit_nickname = new QLineEdit(Dialog);
         lineEdit_nickname->setObjectName(QString::fromUtf8("lineEdit_nickname"));
         lineEdit_nickname->setGeometry(QRect(70, 330, 113, 20));
@@ -99,6 +111,15 @@ public:
         label_3 = new QLabel(Dialog);
         label_3->setObjectName(QString::fromUtf8("label_3"));
         label_3->setGeometry(QRect(10, 330, 51, 20));
+        QWidget::setTabOrder(lineEdit_nickname, lineEdit_subnet);
+        QWidget::setTabOrder(lineEdit_subnet, lineEdit_netmask);
+        QWidget::setTabOrder(lineEdit_netmask, pushButton_con);
+        QWidget::setTabOrder(pushButton_con, lineEdit);
+        QWidget::setTabOrder(lineEdit, pushButton);
+        QWidget::setTabOrder(pushButton, checkBox_nobroadcast);
+        QWidget::setTabOrder(checkBox_nobroadcast, listView);
+        QWidget::setTabOrder(listView, plainTextEdit);
+        QWidget::setTabOrder(plainTextEdit, pushButton_discon);
 
         retranslateUi(Dialog);
         QObject::connect(pushButton, SIGNAL(pressed()), Dialog, SLOT(OnSend()));

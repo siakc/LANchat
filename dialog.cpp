@@ -33,8 +33,8 @@ void Dialog::OnSend()
 {
     if(!ui->lineEdit->text().isEmpty())
     {
-        QString message = conMngr->GetMyNickname() + ": "  + ui->lineEdit->text();
-        ui->plainTextEdit->appendPlainText(message);
+	QString message = ui->lineEdit->text();
+	ui->plainTextEdit->appendPlainText(conMngr->GetMyNickname() + ": " + message);
         conMngr->WriteMessage(message);
         ui->lineEdit->clear();
     }
@@ -44,8 +44,8 @@ void Dialog::OnNickChange()
 {
   QStringList nickNames;
   if(!conMngr->GetNicknames(&nickNames)) return;
-  QAbstractItemModel *model = new QStringListModel(nickNames);
-  ui->listView->setModel(model);
+  QStringListModel *model = new QStringListModel(nickNames);
+  ui->listView->setModel( model);
 
 }
 
@@ -53,6 +53,7 @@ void Dialog::OnDisconnect()
 {
     conMngr->StopNetwork();
     ui->pushButton_con->setEnabled(true);
+    ui->listView->reset();
 }
 
 

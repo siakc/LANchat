@@ -75,6 +75,12 @@
    <property name="text">
     <string>Send</string>
    </property>
+   <property name="autoDefault">
+    <bool>false</bool>
+   </property>
+   <property name="default">
+    <bool>true</bool>
+   </property>
   </widget>
   <widget class="QPlainTextEdit" name="plainTextEdit">
    <property name="geometry">
@@ -84,6 +90,9 @@
      <width>351</width>
      <height>251</height>
     </rect>
+   </property>
+   <property name="focusPolicy">
+    <enum>Qt::NoFocus</enum>
    </property>
    <property name="readOnly">
     <bool>true</bool>
@@ -104,6 +113,9 @@
    <property name="text">
     <string>Connect</string>
    </property>
+   <property name="autoDefault">
+    <bool>false</bool>
+   </property>
   </widget>
   <widget class="QLineEdit" name="lineEdit_subnet">
    <property name="geometry">
@@ -113,6 +125,12 @@
      <width>101</width>
      <height>21</height>
     </rect>
+   </property>
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
    </property>
    <property name="inputMask">
     <string>000.000.000.000;_</string>
@@ -153,6 +171,15 @@
      <height>20</height>
     </rect>
    </property>
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="acceptDrops">
+    <bool>true</bool>
+   </property>
    <property name="inputMask">
     <string>00;_</string>
    </property>
@@ -160,7 +187,7 @@
   <widget class="QLabel" name="label_2">
    <property name="geometry">
     <rect>
-     <x>330</x>
+     <x>340</x>
      <y>302</y>
      <width>16</width>
      <height>16</height>
@@ -211,6 +238,18 @@
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
+ <tabstops>
+  <tabstop>lineEdit_nickname</tabstop>
+  <tabstop>lineEdit_subnet</tabstop>
+  <tabstop>lineEdit_netmask</tabstop>
+  <tabstop>pushButton_con</tabstop>
+  <tabstop>lineEdit</tabstop>
+  <tabstop>pushButton</tabstop>
+  <tabstop>checkBox_nobroadcast</tabstop>
+  <tabstop>listView</tabstop>
+  <tabstop>plainTextEdit</tabstop>
+  <tabstop>pushButton_discon</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>
