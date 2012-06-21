@@ -7,4 +7,4 @@ Each of the nodes receiving the broadcasts register the broadcaster and  checks:
 		If the connected node is not initiator->Does nothing
 When a user sends a message, its node sends the message to any connected node
 Other nodes relay the message
-To send a message to a specific nickname, a node can establish a TCP connection o target node (using registared IP-Nickname pair)
+To send a message to a specific nickname, a node can(?) establish a TCP connection o target node (using registared IP-Nickname pair)

@@ -1,11 +1,35 @@
 #include <conmngr.h>
+/*Protocol:
+I name it chain and I tell you why: messages are not broadcasted into subnet
+each node relays messages to another node. Each node can be connected at most
+to two other nodes, its graph is like this t->o->o->o->o->h
+when a new node enters the network it broadcasts a UDP "advertize" packet
+which contains its name and address. None of the nodes connects to this new
+node except the node on the head so it contacts the new node and makes a
+TCP connection with it. Now the new node becomes the head. Former head sends
+a UNN packet containing its own ip/nick registration list. One scenario is
+when a node in the middle of the chain gets shut down. When this happens
+The chain is broken and we will have 2 separate chains. [Remeber our chain
+should never become a circle.] To handle this situation the node that was
+in front of gone node broadcasts a special packet "TDC" saying my tail connection
+is dropped. The node which was at the tail of gone node responds to this packet by
+connecting to the broadcaster node. Other nodes respond to this packet by removing
+its ip/nick pair from their registration lists. One problem here is that each node
+should know the origin of each message. So when the head connects to a new node it
+sends the ip and nickname associated with that ip through the network. Each node
+registers that ip/nick pair. We also include the ip and nickname in the packet we
+want to send. So any recieving node can check the ip/nick pair against its own list
+to see they match or not. If not the node ifers that the sender has change its nickname.
+Remember that each node's IP is the sole identifier of that node.
+*/
+
 /*Packet types
 adz : UDP advertize
 con : For tcp hanshake start
 hsh : respond to con
-nnc : nick name has changed, can be udp or tcp
-unn : gives a name
+tdc : Tail Dropped Connection: when the initiator drops the connection
 */
+
 ConnectionManager::ConnectionManager()
 {
     udpSocket = nullptr;
@@ -16,13 +40,8 @@ ConnectionManager::ConnectionManager()
     incommingTcp = nullptr;
     outgoingTcp = nullptr;
     nickname = "MyNick";
+    LANCHATSIG.append("LANchat");
 }
-
-ConnectionManager::~ConnectionManager()
-{
-    StopNetwork();
-}
-
 
 void ConnectionManager::StartNetwork(QHostAddress subnet, quint32 netmaskOnes, bool broadcast)
 {
@@ -47,7 +66,7 @@ void ConnectionManager::StartNetwork(QHostAddress subnet, quint32 netmaskOnes, b
             if((addList[j].ip().protocol() == QAbstractSocket::IPv4Protocol )&&((subnet.toIPv4Address() & netmask)== (addList[j].netmask().toIPv4Address() & addList[j].ip().toIPv4Address())))
             {
                 listenAddress = addList[j].ip();
-                LogMessage("\""+il[i].humanReadableName() + "\" interface selected." );
+		LogMessage("\"" + il[i].humanReadableName() + "\" interface selected." );
                 found = true;
                 break;
             }
@@ -88,7 +107,7 @@ void ConnectionManager::StartNetwork(QHostAddress subnet, quint32 netmaskOnes, b
     }
 
 
-    QByteArray broadcastBytes = CreateADZPacket(nickname, listenSocket->serverAddress().toString());
+    QByteArray broadcastBytes = CreateADZPacket();
     
     LogMessage("Our address is " + listenSocket->serverAddress().toString() /*+ ":" + LISTEN_PORT*/);
     //Broadcasting ourselves
@@ -115,7 +134,7 @@ void ConnectionManager::OnReadTcpTo()
     QByteArray readBytes;
     readBytes.resize(connectionTo->bytesAvailable());
     readBytes = connectionTo->read(connectionTo->bytesAvailable());
-    if(!readBytes.startsWith("LANchat"))
+    if(!readBytes.startsWith(LANCHATSIG))
     {
         LogMessage("TCP packet was not from LANchat, ignored.");
         return;
@@ -125,9 +144,7 @@ void ConnectionManager::OnReadTcpTo()
     switch(type)
     {
     case MSG:
-        if(connectionFrom != nullptr) connectionFrom->write(CreateMSGPacket(QString(payloads[1])));
-        readBuffer = payloads[1];
-        emit NewMessage();
+	OnMSGPacket(&payloads, false);
         break;
     default:
         LogMessage("Unexpected packet type from acceptor.");
@@ -142,7 +159,7 @@ void ConnectionManager::OnReadTcpFrom()
     QByteArray readBytes;
     readBytes.resize(connectionFrom->bytesAvailable());
     readBytes = connectionFrom->read(connectionFrom->bytesAvailable());
-    if(!readBytes.startsWith("LANchat"))
+    if(!readBytes.startsWith(LANCHATSIG))
     {
         LogMessage("TCP packet was not from LANchat, ignored.");
         return;
@@ -151,13 +168,10 @@ void ConnectionManager::OnReadTcpFrom()
     PacketTypes type = DisassemblePacket(&readBytes, &payloads);
     switch(type)
     {
-    case UNN:
-        OnUNNPacket(&payloads);
-        break;
+
     case MSG:
-        if(connectionTo != nullptr) connectionTo->write(CreateMSGPacket(QString(payloads[1])));
-        readBuffer = payloads[1];
-        emit NewMessage();
+	OnMSGPacket(&payloads, true);
+
         break;
     default:
         LogMessage("Unexpected packet type from initiator.");
@@ -215,7 +229,7 @@ void ConnectionManager::WriteMessage(QString message)
 
 void ConnectionManager::OnHandshakeOutgoing()
 {
-    outgoingTcp->write(CreateCONPacket(listenSocket->serverAddress().toString()));
+    outgoingTcp->write(CreateCONPacket());
     LogMessage("Sent CON packet.");
 }
 
@@ -233,28 +247,6 @@ void ConnectionManager::OnTcpFromDisconnect()
     LogMessage("Disconnected from our initiator.");
 }
 
-void ConnectionManager::StopNetwork()
-{
-    LogMessage("Disconnected.");
-    this->disconnect();
-    if(connectionTo != nullptr) delete connectionTo;
-    if(connectionFrom != nullptr) delete connectionFrom;
-    if(nickIpPairList != nullptr) delete nickIpPairList;
-    if(outgoingTcp != nullptr) delete outgoingTcp;
-    if(incommingTcp != nullptr) delete incommingTcp;
-    if(udpSocket != nullptr) delete udpSocket;
-    if(listenSocket != nullptr) delete listenSocket;
-    connectionTo = nullptr;
-    connectionFrom = nullptr;
-    nickIpPairList = nullptr;
-    outgoingTcp =nullptr;
-    incommingTcp=nullptr;
-    udpSocket=nullptr;
-    listenSocket= nullptr;
-
-
-}
-
 void ConnectionManager::OnReadTcpIncomming()
 {
     QByteArray readBytes;
@@ -262,9 +254,9 @@ void ConnectionManager::OnReadTcpIncomming()
     PacketTypes type;
     readBytes.resize(incommingTcp->bytesAvailable());
     readBytes = incommingTcp->read(incommingTcp->bytesAvailable());
-    if(!readBytes.startsWith("LANchat"))
+    if(!readBytes.startsWith(LANCHATSIG))
     {
-        incommingTcp->deleteLater();
+	incommingTcp->deleteLater();
         incommingTcp = nullptr;
         LogMessage("Incomming TCP connection was not from LANchat, connection closed.");
         return;
@@ -290,11 +282,11 @@ void ConnectionManager::OnReadTcpOutgoing()
     PacketTypes type;
     readBytes.resize(outgoingTcp->bytesAvailable());
     readBytes = outgoingTcp->read(outgoingTcp->bytesAvailable());
-    if(!readBytes.startsWith("LANchat"))
+    if(!readBytes.startsWith(LANCHATSIG))
     {
         outgoingTcp->deleteLater();
         outgoingTcp = nullptr;
-        LogMessage("Peer respond didn't start with LANchat, connection closed.");
+	LogMessage("Peer response didn't start with LANchat, connection closed.");
         return;
     }
     else
@@ -327,9 +319,8 @@ void ConnectionManager::OnADZPacket(QStringList *packet)
         return;
     }
 
-    nickIpPairList->insert(NickIpPair(QHostAddress(IP), nick));
-    emit NicknamesChanged();
-    LogMessage("UDP datagram has advertise flag, registering >> " + nick + " (" + IP + ") ");
+
+    LogMessage("UDP datagram has advertise flag.");
     if(connectionTo == nullptr)
     {
         if(outgoingTcp != nullptr) delete outgoingTcp;
@@ -341,33 +332,49 @@ void ConnectionManager::OnADZPacket(QStringList *packet)
         connect(outgoingTcp, SIGNAL(readyRead()), this, SLOT(OnReadTcpOutgoing()));
         connect(outgoingTcp, SIGNAL(disconnected()), this, SLOT(OnTcpOutgoingDisconnect()));
         //connect(connectionTo, SIGNAL(disconnected()), this, SLOT(OnTCPInitiatorDisconnect()));
-        outgoingTcp->connectToHost(QHostAddress(IP), LISTEN_PORT); //should use events to intercept
+	outgoingTcp->connectToHost(QHostAddress(IP), LISTEN_PORT); //should use events to intercept
 
         LogMessage("Connecting to advertiser....");
     }
     else
     {
         LogMessage("Already connected to another peer, ignoring advertise datagram.");
-        return; //We have already made connection to a peer
+	return; //We have already made a connection to a peer
     }
 }
 
-void ConnectionManager::OnNNCPacket(QStringList *packet)
+void ConnectionManager::OnMSGPacket(QStringList *payloads, bool isFromTail)
 {
 
+    if(isFromTail)
+    {
+	if(connectionTo != nullptr) connectionTo->write(CreateMSGPacket(QString((*payloads)[3])));
+    }
+    else
+    {
 
-}
+	if(connectionFrom != nullptr) connectionFrom->write(CreateMSGPacket(QString((*payloads)[3])));
+    }
+    QHostAddress senderIP = QHostAddress ((*payloads)[1]);
+    QString senderNick = (*payloads)[2];
 
-void ConnectionManager::OnUNNPacket(QStringList *packet)
-{
+    if(senderNick != nickIpPairList->at( senderIP ))
+    {
+	nickIpPairList->at( senderIP) = senderNick;
+	LogMessage("Peer with IP " + senderIP.toString() + "changed nickname from " + nickIpPairList->at( senderIP) + " to " + senderNick);
 
+	nickIpPairList->at( senderIP) = senderNick;
+    }
+
+    readBuffer = senderNick + ": " + (*payloads)[3];
+    emit NewMessage();
 
 }
 
 void ConnectionManager::OnCONPacket(QStringList *packet)
 {
 
-    QString IP = (*packet)[1];
+    QString IP = (*packet)[2];
     incommingTcp->disconnect();
     connectionFrom = incommingTcp;
     incommingTcp = nullptr;
@@ -382,63 +389,59 @@ void ConnectionManager::OnCONPacket(QStringList *packet)
     connectionFrom->write(CreateHSHPacket());
     LogMessage("Accepted TCP connection from (" + IP + ")");
 
-    int numberOfPeers = ((*packet)[2]).toInt();
-    for(int i =3 ; i< (numberOfPeers+3);i+=2)
+    int numberOfPeers = ((*packet)[1]).toInt();
+    for(int i =2 ; i < (numberOfPeers+2);i+=2)
     {
         nickIpPairList->insert(NickIpPair(QHostAddress((*packet)[i]), QString((*packet)[i+1])));
 
     }
+    emit NicknamesChanged();
 
 }
 
-void ConnectionManager::OnHSHPacket(QStringList *packet)
+void ConnectionManager::OnHSHPacket(QStringList *payload)
 {
     outgoingTcp->disconnect();
     connectionTo = outgoingTcp;
     outgoingTcp = nullptr;
-    connect(connectionTo, SIGNAL(connected()), this, SLOT(OnHandshakeOutgoing()));
+    //connect(connectionTo, SIGNAL(connected()), this, SLOT(OnHandshakeOutgoing()));
     connect(connectionTo, SIGNAL(readyRead()), this, SLOT(OnReadTcpTo()));
     connect(connectionTo, SIGNAL(disconnected()), this, SLOT(OnTcpToDisconnect()));
+
+    nickIpPairList->insert(NickIpPair(QHostAddress((*payload)[1]), (*payload)[2]));
+    emit NicknamesChanged();
+
     LogMessage("Advertizer accepted the connection.");
-    //connectionTo->write(CreateUNNPacket());
-
 }
 
-QByteArray ConnectionManager::CreateADZPacket(QString nickname, QString hostAddress)
+QByteArray ConnectionManager::CreateADZPacket()
 {
     QByteArray packet;
-    packet.append("LANchat");
-    char dummy[2];
-    _itoa(ADZ, dummy, 10);
-    packet.append(QString(dummy) + "\r\n");
+    packet.append(LANCHATSIG);
+    char tmp[2];
+    _itoa(ADZ, tmp, 10);
+    packet.append(QString(tmp) + "\r\n");
     packet.append(nickname + "\r\n");
-    packet.append(hostAddress + "\r\n");
+    packet.append(listenSocket->serverAddress().toString() + "\r\n");
     return packet;
 }
 
-QByteArray ConnectionManager::CreateNNCPacket(QString nickname, QString hostAddress)
+QByteArray ConnectionManager::CreateCONPacket()
 {
     QByteArray packet;
-    packet.append("LANchat");
-    char dummy[2];
-    _itoa(NNC, dummy, 10);
-    packet.append(QString(dummy) + "\r\n" );
+    packet.append(LANCHATSIG);
+    char tmp[2];
+    _itoa(CON, tmp, 10);
+    packet.append(QString(tmp) + "\r\n");    
+
+    _itoa(nickIpPairList->size()+1, tmp, 10);
+    packet.append(QString(tmp) + "\r\n");
+
+    //Adding our own IP/nick
+    packet.append(listenSocket->serverAddress().toString() + "\r\n");
     packet.append(nickname + "\r\n");
-    packet.append(hostAddress + "\r\n");
-    return packet;
-}
 
-QByteArray ConnectionManager::CreateCONPacket(QString hostAddress)
-{
-    QByteArray packet;
-    packet.append("LANchat");
-    char dummy[2];
-    _itoa(CON, dummy, 10);
-    packet.append(QString(dummy) + "\r\n");
-    _itoa(nickIpPairList->size()+1, dummy, 10);
-    packet.append(QString(dummy) + "\r\n");
-    packet.append(hostAddress + "\r\n");
-
+    //Adding other known IP/nicks
     for(NickIpCIter it = nickIpPairList->cbegin();it != nickIpPairList->cend() ;++it)
     {
         //We add nick/ip pairs of all we know to new peer that we have connected to
@@ -452,37 +455,26 @@ QByteArray ConnectionManager::CreateCONPacket(QString hostAddress)
 QByteArray ConnectionManager::CreateHSHPacket()
 {
     QByteArray packet;
-    packet.append("LANchat");
-    char dummy[2];
-    _itoa(HSH, dummy, 10);
-    packet.append(QString(dummy) + "\r\n");
+    packet.append(LANCHATSIG);
+    char tmp[2];
+    _itoa(HSH, tmp, 10);
+    packet.append(QString(tmp) + "\r\n");
+    packet.append(listenSocket->serverAddress().toString() + "\r\n");
+    packet.append(nickname + "\r\n");
     return packet;
 }
 
-QByteArray ConnectionManager::CreateUNNPacket()
-{
-    QByteArray packet;
-    packet.append("LANchat");
-    char dummy[2];
-    _itoa(UNN, dummy, 10);
-    packet.append(QString(dummy) + "\r\n");
-    _itoa(nickIpPairList->size(), dummy, 10);
-    packet.append(QString(dummy) + "\r\n");
-    for(NickIpCIter it = nickIpPairList->cbegin();it != nickIpPairList->cend() ;++it)
-    {
-        packet.append(it->first.toString() + "\r\n"); //We add nick/ip pairs of all we know to new peer that we have connected to
-        packet.append(it->second + "\r\n");
-    }
-    return packet;
-}
 
 QByteArray ConnectionManager::CreateMSGPacket(QString message)
 {
     QByteArray packet;
-    packet.append("LANchat");
-    char dummy[2];
-    _itoa(MSG, dummy, 10);
-    packet.append(QString(dummy) + "\r\n");
+    packet.append(LANCHATSIG);
+    char tmp[2];
+    _itoa(MSG, tmp, 10);
+    packet.append(QString(tmp) + "\r\n");
+    //should also put own ip/nick pair here
+    packet.append(listenAddress.toString() + "\r\n");
+    packet.append(nickname  + "\r\n");
     packet.append(message.toUtf8() + "\r\n");
 
     return packet;
@@ -503,22 +495,24 @@ ConnectionManager::PacketTypes ConnectionManager::DisassemblePacket(QByteArray *
         break;
     case CON:
         oldIndexOfCRLF = indexOfCRLF;
-        indexOfCRLF = packet->indexOf("\r\n", oldIndexOfCRLF + 2);
-        numberOfPayloads = packet->mid(oldIndexOfCRLF+2,indexOfCRLF-(oldIndexOfCRLF+2)).toInt()*2+1;
+	indexOfCRLF = packet->indexOf("\r\n", oldIndexOfCRLF + 2);
+	payloads->append(packet->mid(oldIndexOfCRLF+2,indexOfCRLF-(oldIndexOfCRLF+2)));
+	numberOfPayloads = packet->mid(oldIndexOfCRLF+2,indexOfCRLF-(oldIndexOfCRLF+2)).toInt()*2;
         break;
     case HSH:
-        numberOfPayloads=0;
-        break;
-    case NNC:
-        numberOfPayloads=1;
+	numberOfPayloads=2;
         break;
     case UNN:
         oldIndexOfCRLF = indexOfCRLF;
         indexOfCRLF = packet->indexOf("\r\n", oldIndexOfCRLF + 2);
         numberOfPayloads = packet->mid(oldIndexOfCRLF+2,indexOfCRLF-(oldIndexOfCRLF+2)).toInt();
         break;
+    case TDC:
+	//Someone's tail connection is dropped
+	break;
     case MSG:
-        numberOfPayloads=1;
+	numberOfPayloads=3;
+	break;
 
     }
 
@@ -546,4 +540,27 @@ void ConnectionManager::OnTcpOutgoingDisconnect()
     outgoingTcp = nullptr;
 }
 
+void ConnectionManager::StopNetwork()
+{
+    LogMessage("Disconnected.");
+    this->disconnect();
+    if(connectionTo != nullptr) delete connectionTo;
+    if(connectionFrom != nullptr) delete connectionFrom;
+    if(nickIpPairList != nullptr) delete nickIpPairList;
+    if(outgoingTcp != nullptr) delete outgoingTcp;
+    if(incommingTcp != nullptr) delete incommingTcp;
+    if(udpSocket != nullptr) delete udpSocket;
+    if(listenSocket != nullptr) delete listenSocket;
+    connectionTo = nullptr;
+    connectionFrom = nullptr;
+    nickIpPairList = nullptr;
+    outgoingTcp =nullptr;
+    incommingTcp=nullptr;
+    udpSocket=nullptr;
+    listenSocket= nullptr;
+}
 
+ConnectionManager::~ConnectionManager()
+{
+    StopNetwork();
+}
