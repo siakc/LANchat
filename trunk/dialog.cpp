@@ -27,6 +27,7 @@ void Dialog::OnConnect()
 void Dialog::OnNewMessage()
 {
     ui->plainTextEdit->appendPlainText(conMngr->ReadMessage() + '\n');
+    this->activateWindow();
 }
 
 void Dialog::OnSend()
